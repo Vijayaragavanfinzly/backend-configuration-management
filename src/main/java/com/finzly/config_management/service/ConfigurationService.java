@@ -14,10 +14,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Optional;
-import java.util.UUID;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -118,6 +115,98 @@ public class ConfigurationService {
         return propertyDTO.getPropertyKey() == null || propertyDTO.getPropertyKey().trim().isEmpty() ||
                 propertyDTO.getPropertyValue() == null || propertyDTO.getPropertyValue().trim().isEmpty();
     }
+
+
+    public List<Map<String, Object>> tenantEnvComparison(
+            String tenant1, String environment1, String tenant2, String environment2) {
+
+        // Fetch UUIDs for the provided tenants and environments
+        String uuid1 = tenantEnvRepo.findIdByTenantAndEnvironment(tenant1, environment1);
+        String uuid2 = tenantEnvRepo.findIdByTenantAndEnvironment(tenant2, environment2);
+
+        // Initialize UUID variables
+        UUID id1, id2;
+
+        // Check if the UUIDs are found, else throw exceptions
+        if (uuid1 == null) {
+            throw new IllegalArgumentException(
+                    "No ID Found For this Tenant: " + tenant1 + " and Environment: " + environment1);
+        } else if (uuid2 == null) {
+            throw new IllegalArgumentException(
+                    "No ID Found For this Tenant: " + tenant2 + " and Environment: " + environment2);
+        } else {
+            id1 = UUID.fromString(uuid1);
+            id2 = UUID.fromString(uuid2);
+        }
+
+        // Retrieve configuration properties for both tenants and environments
+        List<Configuration> properties1 = configurationRepo.findByTenantEnvId(id1);
+        List<Configuration> properties2 = configurationRepo.findByTenantEnvId(id2);
+
+        // Convert lists of configurations to maps for easy comparison
+        Map<String, String> tenant1Map = properties1.stream()
+                .collect(Collectors.toMap(Configuration::getPropertyKey, Configuration::getPropertyValue, (existingValue, newValue) -> existingValue));
+        Map<String, String> tenant2Map = properties2.stream()
+                .collect(Collectors.toMap(Configuration::getPropertyKey, Configuration::getPropertyValue, (existingValue, newValue) -> existingValue));
+
+        // Get a unified set of all property keysi
+        Set<String> allKeys = new HashSet<>();
+        allKeys.addAll(tenant1Map.keySet());
+        allKeys.addAll(tenant2Map.keySet());
+
+        // Prepare the result list for comparison
+        List<Map<String, Object>> result = new ArrayList<>();
+
+        // Iterate through all keys and compare their values between the two tenants
+        for (String key : allKeys) {
+            Map<String, Object> entry = new HashMap<>();
+            entry.put("propertyKey", key);
+            entry.put("PropertyValue1", tenant1Map.getOrDefault(key, null));
+            entry.put("PropertyValue2", tenant2Map.getOrDefault(key, null));
+
+            // Check if the property values are the same (case insensitive)
+            if (tenant1Map.get(key) != null && tenant2Map.get(key) != null &&
+                    tenant1Map.get(key).toString().equalsIgnoreCase(tenant2Map.get(key).toString())) {
+                entry.put("isSame", true);
+            } else {
+                entry.put("isSame", false);
+            }
+
+            // Add the comparison result to the final list
+            result.add(entry);
+        }
+
+        // Return the comparison result
+        return result;
+    }
+
+    public void changeProperty(String tenant, String environment, String propertyKey, String newValue) {
+        // Fetch the UUID of tenant_env_id using tenant and environment
+        String uuid = tenantEnvRepo.findIdByTenantAndEnvironment(tenant, environment);
+        if (uuid == null) {
+            throw new IllegalArgumentException("Invalid tenant or environment specified.");
+        }
+        UUID tenantEnvId = UUID.fromString(uuid);
+
+        // Fetch all rows associated with the tenantEnvId
+        List<Configuration> configurations = configurationRepo.findByTenantEnvId(tenantEnvId);
+
+        // Iterate through the configurations to find the matching key
+        for (Configuration config : configurations) {
+            if (config.getPropertyKey().equals(propertyKey)) {
+                // Update the value for the matching property key
+                config.setPropertyValue(newValue);
+                configurationRepo.save(config);
+                System.out.println("Property value updated successfully.");
+                return; // Exit after updating the matching key
+            }
+        }
+
+        // If no matching property key is found
+        throw new IllegalArgumentException("Property key not found for the given tenant and environment.");
+    }
+
+
 
 
 }

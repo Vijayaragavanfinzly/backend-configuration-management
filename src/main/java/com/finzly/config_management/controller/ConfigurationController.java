@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 @CrossOrigin
 @RestController
@@ -74,4 +75,52 @@ public class ConfigurationController {
             return ResponseEntity.ok(new ApiResponse<>(e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR.value()));
         }
     }
+
+    @GetMapping("{tenant1}/{environment1}/{tenant2}/{environment2}")
+    public ResponseEntity<ApiResponse<List<Map<String, Object>>>> tenantEnvComparison(
+            @PathVariable String tenant1,
+            @PathVariable String environment1,
+            @PathVariable String tenant2,
+            @PathVariable String environment2
+    ) {
+        try {
+            List<Map<String, Object>> result = configurationService.tenantEnvComparison(
+                    tenant1, environment1, tenant2, environment2
+            );
+
+            return ResponseEntity.ok(
+                    new ApiResponse<>(
+                            "Property Fetched Successfully!",
+                            HttpStatus.OK.value(),
+                            result
+                    )
+            );
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.ok(
+                    new ApiResponse<>(
+                            e.getMessage(),
+                            HttpStatus.BAD_REQUEST.value()
+                    )
+            );
+        }
+    }
+
+
+    @PutMapping("{tenant}/{environment}/{propertyKey}/{newValue}")
+    public ResponseEntity<ApiResponse<String>> changeProperty(
+            @PathVariable String tenant,
+            @PathVariable String environment,
+            @PathVariable String propertyKey,
+            @PathVariable String newValue) {
+        try {
+            configurationService.changeProperty(tenant, environment, propertyKey, newValue);
+            return ResponseEntity.ok(
+                    new ApiResponse<>("Property Updated Successfully!", HttpStatus.OK.value()));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.ok(
+                    new ApiResponse<>(e.getMessage(), HttpStatus.BAD_REQUEST.value()));
+        }
+    }
+
+
 }
